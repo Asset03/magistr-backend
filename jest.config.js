@@ -1,14 +1,15 @@
 module.exports = {
   testEnvironment: 'node',
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: [
-    '<rootDir>/tests/**/*.test.js'
+    '**/__tests__/**/*.js',
+    '**/?(*.)+(spec|test).js'
   ],
   collectCoverageFrom: [
     'src/**/*.js',
     '!src/server.js',
-    '!src/scripts/**',
-    '!src/config/**'
+    '!src/config/**',
+    '!src/utils/logger.js'
   ],
   coverageDirectory: 'coverage',
   coverageReporters: [
@@ -16,7 +17,16 @@ module.exports = {
     'lcov',
     'html'
   ],
-  testTimeout: 10000,
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70
+    }
+  },
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  testTimeout: 30000,
   verbose: true,
   forceExit: true,
   clearMocks: true,

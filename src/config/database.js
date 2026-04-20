@@ -1,31 +1,87 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error('Database connection error:', error);
-    process.exit(1);
+class Database {
+  constructor() {
+    this.connection = null;
   }
-};
 
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB connection error:', err);
-});
+  async connect() {
+    try {
+      const mongoUri = process.env.NODE_ENV === 'test' 
+        ? process.env.MONGODB_TEST_URI 
+        : process.env.MONGODB_URI;
 
-mongoose.connection.on('disconnected', () => {
-  console.log('MongoDB disconnected');
-});
+      if (!mongoUri) {
+        throw new Error('MongoDB URI not provided');
+      }
 
-process.on('SIGINT', async () => {
-  await mongoose.connection.close();
-  console.log('MongoDB connection closed through app termination');
-  process.exit(0);
-});
+      const options = {
+        maxPoolSize: 10,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000
+      };
 
-module.exports = connectDB;
+      this.connection = await mongoose.connect(mongoUri, options);
+      
+      logger.info(`Connected to MongoDB: ${this.connection.connection.host}`);
+      
+      // Handle connection events
+      mongoose.connection.on('error', (error) => {
+        logger.error('MongoDB connection error:', error);
+      });
+
+      mongoose.connection.on('disconnected', () => {
+        logger.warn('MongoDB disconnected');
+      });
+
+      mongoose.connection.on('reconnected', () => {
+        logger.info('MongoDB reconnected');
+      });
+
+      return this.connection;
+    } catch (error) {
+      logger.error('Database connection failed:', error);
+      throw error;
+    }
+  }
+
+  async disconnect() {
+    try {
+      if (this.connection) {
+        await mongoose.disconnect();
+        logger.info('Disconnected from MongoDB');
+      }
+    } catch (error) {
+      logger.error('Error disconnecting from MongoDB:', error);
+      throw error;
+    }
+  }
+
+  getConnection() {
+    return this.connection;
+  }
+
+  async healthCheck() {
+    try {
+      const state = mongoose.connection.readyState;
+      const states = {
+        0: 'disconnected',
+        1: 'connected',
+        2: 'connecting',
+        3: 'disconnecting'
+      };
+      
+      return {
+        status: states[state],
+        host: mongoose.connection.host,
+        port: mongoose.connection.port,
+        name: mongoose.connection.name
+      };
+    } catch (error) {
+      throw new Error(`Database health check failed: ${error.message}`);
+    }
+  }
+}
+
+module.exports = new Database();

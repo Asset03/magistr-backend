@@ -1,269 +1,363 @@
 const mongoose = require('mongoose');
 
-const authorSchema = new mongoose.Schema({
-  author: {
+const citationSchema = new mongoose.Schema({
+  publication_id: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Publication',
     required: true
   },
-  order: {
-    type: Number,
+  title: String,
+  authors: [String],
+  year: Number,
+  doi: String,
+  context: String
+}, { _id: false });
+
+const authorReferenceSchema = new mongoose.Schema({
+  author_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Author',
     required: true
   },
-  isCorresponding: {
-    type: Boolean,
-    default: false
-  }
-});
+  name: String,
+  affiliation: String,
+  order: Number
+}, { _id: false });
 
 const publicationSchema = new mongoose.Schema({
+  // Basic Information
   title: {
     type: String,
-    required: [true, 'Title is required'],
+    required: true,
     trim: true,
-    maxlength: [500, 'Title cannot exceed 500 characters']
+    maxlength: 500
   },
   abstract: {
     type: String,
-    required: [true, 'Abstract is required'],
     trim: true,
-    maxlength: [5000, 'Abstract cannot exceed 5000 characters']
+    maxlength: 5000
   },
-  authors: [authorSchema],
-  keywords: [{
+  full_text: {
     type: String,
-    trim: true,
-    lowercase: true
-  }],
-  publicationYear: {
-    type: Number,
-    required: [true, 'Publication year is required'],
-    min: [1900, 'Publication year must be after 1900'],
-    max: [new Date().getFullYear() + 1, 'Publication year cannot be in the distant future']
+    trim: true
   },
+  
+  // Authors
+  authors: [authorReferenceSchema],
+  
+  // Publication Details
+  publication_year: {
+    type: Number,
+    min: 1800,
+    max: new Date().getFullYear() + 1
+  },
+  publication_date: Date,
   journal: {
-    name: {
-      type: String,
-      trim: true,
-      maxlength: [200, 'Journal name cannot exceed 200 characters']
-    },
-    volume: {
-      type: String,
-      trim: true
-    },
-    issue: {
-      type: String,
-      trim: true
-    },
-    pages: {
-      type: String,
-      trim: true
-    },
-    issn: {
-      type: String,
-      trim: true,
-      match: [/^\d{4}-\d{3}[\dX]$/, 'Please enter a valid ISSN']
-    }
+    name: String,
+    volume: String,
+    issue: String,
+    pages: String,
+    issn: String,
+    publisher: String
   },
   conference: {
-    name: {
-      type: String,
-      trim: true,
-      maxlength: [200, 'Conference name cannot exceed 200 characters']
-    },
-    location: {
-      type: String,
-      trim: true
-    },
-    dates: {
-      start: Date,
-      end: Date
-    }
+    name: String,
+    location: String,
+    dates: String,
+    proceedings: String
   },
+  
+  // Identifiers
   doi: {
     type: String,
-    trim: true,
     unique: true,
     sparse: true,
-    match: [/^10.\d{4,9}\/[-._;()\/:A-Z0-9]+$/, 'Please enter a valid DOI']
+    trim: true
   },
-  citationsCount: {
+  isbn: String,
+  pmid: String,
+  arxiv_id: String,
+  openalex_id: String,
+  
+  // Keywords and Topics
+  keywords: [{
+    term: String,
+    weight: Number,
+    source: String // manual, extracted, ml
+  }],
+  topics: [{
+    topic_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Topic'
+    },
+    confidence: Number,
+    method: String
+  }],
+  
+  // Metrics
+  citations_count: {
     type: Number,
     default: 0,
     min: 0
   },
-  references: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Publication'
-  }],
-  citations: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Publication'
-  }],
-  fullText: {
-    type: String,
-    trim: true
+  references_count: {
+    type: Number,
+    default: 0,
+    min: 0
   },
-  pdfUrl: {
-    type: String,
-    trim: true
+  downloads_count: {
+    type: Number,
+    default: 0,
+    min: 0
   },
-  openAlexId: {
-    type: String,
-    trim: true,
-    unique: true,
-    sparse: true
+  views_count: {
+    type: Number,
+    default: 0,
+    min: 0
   },
-  crossrefId: {
-    type: String,
-    trim: true,
-    unique: true,
-    sparse: true
-  },
+  altmetric_score: Number,
+  h_index_authors: [Number],
+  
+  // Citations and References
+  citations: [citationSchema],
+  references: [citationSchema],
+  
+  // NLP and ML Features
   embeddings: {
-    title: [Number],
-    abstract: [Number],
-    fullText: [Number]
+    title_vector: [Number],
+    abstract_vector: [Number],
+    full_text_vector: [Number],
+    model_version: String,
+    generated_at: Date
   },
-  topics: [{
-    name: {
-      type: String,
-      required: true
-    },
-    weight: {
-      type: Number,
-      min: 0,
-      max: 1
-    },
-    keywords: [String]
-  }],
+  
   language: {
     type: String,
     default: 'en',
-    enum: ['en', 'kk', 'ru', 'zh', 'es', 'fr', 'de', 'ja', 'ko']
+    lowercase: true,
+    minlength: 2,
+    maxlength: 2
   },
-  publicationType: {
+  
+  // Content Analysis
+  readability_score: Number,
+  sentiment_score: {
+    positive: Number,
+    negative: Number,
+    neutral: Number
+  },
+  topic_distribution: [{
+    topic: String,
+    probability: Number
+  }],
+  
+  // File Information
+  file_info: {
+    filename: String,
+    file_type: String,
+    file_size: Number,
+    file_path: String,
+    uploaded_at: Date
+  },
+  
+  // Data Source and Processing
+  source: {
     type: String,
-    enum: ['journal', 'conference', 'book', 'thesis', 'preprint', 'report', 'other'],
-    default: 'journal'
+    enum: ['manual', 'openalex', 'crossref', 'arxiv', 'pubmed', 'upload', 'scraping'],
+    default: 'manual'
   },
-  accessType: {
+  source_id: String,
+  processing_status: {
     type: String,
-    enum: ['open', 'closed', 'hybrid'],
-    default: 'closed'
+    enum: ['pending', 'processing', 'completed', 'failed'],
+    default: 'pending'
   },
+  processing_errors: [String],
+  
+  // Quality and Validation
+  quality_score: {
+    type: Number,
+    min: 0,
+    max: 1
+  },
+  is_peer_reviewed: {
+    type: Boolean,
+    default: false
+  },
+  is_open_access: {
+    type: Boolean,
+    default: false
+  },
+  
+  // Status and Visibility
   status: {
     type: String,
-    enum: ['published', 'in_press', 'preprint', 'draft'],
+    enum: ['draft', 'published', 'archived', 'deleted'],
     default: 'published'
   },
-  indexedIn: [{
+  visibility: {
     type: String,
-    enum: ['scopus', 'wos', 'pubmed', 'google_scholar', 'other']
-  }],
-  metrics: {
-    views: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-    downloads: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-    shares: {
-      type: Number,
-      default: 0,
-      min: 0
-    }
-  }
+    enum: ['public', 'private', 'restricted'],
+    default: 'public'
+  },
+  
+  // Timestamps
+  created_at: {
+    type: Date,
+    default: Date.now
+  },
+  updated_at: {
+    type: Date,
+    default: Date.now
+  },
+  indexed_at: Date,
+  last_cited_at: Date
 }, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+  collection: 'publications'
 });
 
-// Indexes
-publicationSchema.index({ title: 'text', abstract: 'text', keywords: 'text' });
+// Indexes for performance
+publicationSchema.index({ title: 'text', abstract: 'text', full_text: 'text' });
 publicationSchema.index({ authors: 1 });
-publicationSchema.index({ publicationYear: -1 });
-publicationSchema.index({ citationsCount: -1 });
-publicationSchema.index({ 'journal.name': 1 });
+publicationSchema.index({ publication_year: -1 });
+publicationSchema.index({ citations_count: -1 });
 publicationSchema.index({ keywords: 1 });
 publicationSchema.index({ doi: 1 }, { unique: true, sparse: true });
-publicationSchema.index({ openAlexId: 1 }, { unique: true, sparse: true });
-publicationSchema.index({ createdAt: -1 });
+publicationSchema.index({ openalex_id: 1 }, { sparse: true });
+publicationSchema.index({ arxiv_id: 1 }, { sparse: true });
+publicationSchema.index({ 'journal.name': 1 });
+publicationSchema.index({ 'conference.name': 1 });
+publicationSchema.index({ topics: 1 });
+publicationSchema.index({ source: 1 });
+publicationSchema.index({ processing_status: 1 });
+publicationSchema.index({ created_at: -1 });
+publicationSchema.index({ updated_at: -1 });
 
-// Virtual for author count
-publicationSchema.virtual('authorCount', {
-  get() {
-    return this.authors ? this.authors.length : 0;
-  }
+// Compound indexes
+publicationSchema.index({ publication_year: -1, citations_count: -1 });
+publicationSchema.index({ authors: 1, publication_year: -1 });
+publicationSchema.index({ keywords: 1, citations_count: -1 });
+
+// Virtual fields
+publicationSchema.virtual('citations_per_year').get(function() {
+  const yearsSincePublication = Math.max(1, new Date().getFullYear() - this.publication_year);
+  return this.citations_count / yearsSincePublication;
 });
 
-// Virtual for reference count
-publicationSchema.virtual('referenceCount', {
-  get() {
-    return this.references ? this.references.length : 0;
-  }
+publicationSchema.virtual('author_count').get(function() {
+  return this.authors.length;
 });
 
-// Virtual for citation count (explicit field already exists)
-publicationSchema.virtual('citationCount', {
-  get() {
-    return this.citations ? this.citations.length : 0;
-  }
+publicationSchema.virtual('reference_count').get(function() {
+  return this.references.length;
 });
 
-// Pre-save middleware to update citations count
+// Methods
+publicationSchema.methods.addCitation = function(citationData) {
+  this.citations.push(citationData);
+  this.citations_count = this.citations.length;
+  this.last_cited_at = new Date();
+  return this.save();
+};
+
+publicationSchema.methods.incrementViews = function() {
+  this.views_count += 1;
+  return this.save();
+};
+
+publicationSchema.methods.incrementDownloads = function() {
+  this.downloads_count += 1;
+  return this.save();
+};
+
+publicationSchema.methods.updateEmbeddings = function(embeddings) {
+  this.embeddings = {
+    ...this.embeddings,
+    ...embeddings,
+    generated_at: new Date()
+  };
+  return this.save();
+};
+
+// Static methods
+publicationSchema.statics.findByAuthor = function(authorId) {
+  return this.find({ 'authors.author_id': authorId })
+    .sort({ citations_count: -1 });
+};
+
+publicationSchema.statics.findByKeyword = function(keyword) {
+  return this.find({ 
+    'keywords.term': { $regex: keyword, $options: 'i' }
+  }).sort({ citations_count: -1 });
+};
+
+publicationSchema.statics.findTrending = function(days = 30) {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  
+  return this.find({ 
+    created_at: { $gte: cutoffDate },
+    citations_count: { $gt: 0 }
+  }).sort({ citations_count: -1 }).limit(50);
+};
+
+publicationSchema.statics.search = function(query, filters = {}) {
+  const searchQuery = {
+    $and: []
+  };
+
+  // Text search
+  if (query) {
+    searchQuery.$and.push({
+      $text: { $search: query }
+    });
+  }
+
+  // Apply filters
+  if (filters.year) {
+    searchQuery.$and.push({
+      publication_year: filters.year
+    });
+  }
+
+  if (filters.author) {
+    searchQuery.$and.push({
+      'authors.name': { $regex: filters.author, $options: 'i' }
+    });
+  }
+
+  if (filters.journal) {
+    searchQuery.$and.push({
+      'journal.name': { $regex: filters.journal, $options: 'i' }
+    });
+  }
+
+  if (filters.minCitations) {
+    searchQuery.$and.push({
+      citations_count: { $gte: filters.minCitations }
+    });
+  }
+
+  return this.find(searchQuery.$and.length > 0 ? searchQuery : {})
+    .sort({ score: { $meta: 'textScore' }, citations_count: -1 });
+};
+
+// Pre-save middleware
 publicationSchema.pre('save', function(next) {
-  if (this.isModified('citations')) {
-    this.citationsCount = this.citations ? this.citations.length : 0;
+  if (this.isModified('updated_at')) {
+    this.updated_at = new Date();
   }
   next();
 });
 
-// Static method to find similar publications
-publicationSchema.statics.findSimilar = async function(publicationId, limit = 10) {
-  const publication = await this.findById(publicationId).populate('authors.author');
-  if (!publication) return [];
-
-  // Find publications with similar keywords or authors
-  const similarPublications = await this.find({
-    _id: { $ne: publicationId },
-    $or: [
-      { keywords: { $in: publication.keywords } },
-      { 'authors.author': { $in: publication.authors.map(a => a.author) } }
-    ]
-  })
-  .populate('authors.author')
-  .limit(limit)
-  .exec();
-
-  return similarPublications;
-};
-
-// Static method to get citation network
-publicationSchema.statics.getCitationNetwork = async function(publicationId, depth = 2) {
-  const getCitationsRecursive = async (id, currentDepth, visited = new Set()) => {
-    if (currentDepth <= 0 || visited.has(id)) return [];
-    
-    visited.add(id);
-    const pub = await this.findById(id).populate('citations references');
-    if (!pub) return [];
-
-    const result = [pub.toObject()];
-    
-    for (const citation of pub.citations) {
-      const citationNetwork = await getCitationsRecursive(citation._id, currentDepth - 1, visited);
-      result.push(...citationNetwork);
-    }
-    
-    return result;
-  };
-
-  return await getCitationsRecursive(publicationId, depth);
-};
+// Post-save middleware for indexing
+publicationSchema.post('save', function(doc) {
+  // Trigger reindexing in Elasticsearch
+  if (process.env.NODE_ENV !== 'test') {
+    // This would be handled by a separate indexing service
+    console.log(`Publication ${doc._id} saved - triggering reindex`);
+  }
+});
 
 module.exports = mongoose.model('Publication', publicationSchema);

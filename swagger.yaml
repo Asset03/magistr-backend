@@ -1,8 +1,26 @@
-openapi: 3.0.3
+openapi: 3.0.0
 info:
-  title: Scientific Publications Analysis API
-  description: A comprehensive API for analyzing scientific publications with advanced search, analytics, and collaboration features.
+  title: Scientific Publications API
   version: 1.0.0
+  description: |
+    A comprehensive backend API for analyzing scientific publications with NLP and ML capabilities.
+    This system provides endpoints for managing publications, authors, citations, topics, and analytics.
+    
+    ## Features
+    - Publication management with full-text search
+    - Author profiles with collaboration networks
+    - Citation analysis and relationship mapping
+    - Topic modeling and trend analysis
+    - Advanced analytics and insights
+    - Data import/export capabilities
+    - Secure authentication and authorization
+    
+    ## Authentication
+    Most endpoints require JWT authentication. Include the token in the Authorization header:
+    `Authorization: Bearer <your-jwt-token>`
+    
+    ## Rate Limiting
+    API endpoints are rate-limited to prevent abuse. Limits vary by endpoint type.
   contact:
     name: API Support
     email: support@scientific-publications.com
@@ -11,18 +29,17 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: http://localhost:3000/api
+  - url: http://localhost:4000/api
     description: Development server
-  - url: https://api.scientific-publications.com
-    description: Production server
 
 paths:
+  # Authentication Routes
   /auth/register:
     post:
       tags:
         - Authentication
       summary: Register a new user
-      description: Create a new user account with email and password
+      description: Creates a new user account
       requestBody:
         required: true
         content:
@@ -30,66 +47,55 @@ paths:
             schema:
               type: object
               required:
-                - name
-                - email
+                - username
                 - password
               properties:
-                name:
+                username:
                   type: string
-                  example: "Dr. John Doe"
-                email:
-                  type: string
-                  format: email
-                  example: "john.doe@university.edu"
+                  description: Unique username (3-30 characters)
                 password:
                   type: string
                   minLength: 6
-                  example: "password123"
-                role:
+                  description: Password (minimum 6 characters)
+                first_name:
                   type: string
-                  enum: [user, researcher, admin]
-                  default: user
-                affiliation:
+                  description: First name (optional)
+                last_name:
                   type: string
-                  example: "Stanford University"
-                researchInterests:
-                  type: array
-                  items:
-                    type: string
-                  example: ["Machine Learning", "AI"]
+                  description: Last name (optional)
+                institution:
+                  type: object
+                  description: Institution information (optional)
+                  properties:
+                    name:
+                      type: string
       responses:
         '201':
-          description: User created successfully
+          description: User registered successfully
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      user:
-                        $ref: '#/components/schemas/User'
-                      accessToken:
-                        type: string
-                      refreshToken:
-                        type: string
-                      expiresIn:
-                        type: string
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+                  refreshToken:
+                    type: string
         '400':
-          $ref: '#/components/responses/ValidationError'
+          $ref: '#/components/responses/BadRequest'
         '409':
-          $ref: '#/components/responses/ConflictError'
+          $ref: '#/components/responses/Conflict'
 
   /auth/login:
     post:
       tags:
         - Authentication
-      summary: Login user
-      description: Authenticate user with email and password
+      summary: User login
+      description: Authenticates user and returns JWT tokens
       requestBody:
         required: true
         content:
@@ -97,16 +103,15 @@ paths:
             schema:
               type: object
               required:
-                - email
+                - identifier
                 - password
               properties:
-                email:
+                identifier:
                   type: string
-                  format: email
-                  example: "john.doe@university.edu"
+                  description: Username or email
                 password:
                   type: string
-                  example: "password123"
+                  description: User password
       responses:
         '200':
           description: Login successful
@@ -115,29 +120,23 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      user:
-                        $ref: '#/components/schemas/User'
-                      accessToken:
-                        type: string
-                      refreshToken:
-                        type: string
-                      expiresIn:
-                        type: string
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+                  refreshToken:
+                    type: string
         '401':
-          $ref: '#/components/responses/UnauthorizedError'
+          $ref: '#/components/responses/Unauthorized'
 
   /auth/refresh:
     post:
       tags:
         - Authentication
       summary: Refresh access token
-      description: Get new access token using refresh token
+      description: Generates new access token using refresh token
       requestBody:
         required: true
         content:
@@ -149,6 +148,7 @@ paths:
               properties:
                 refreshToken:
                   type: string
+                  description: Valid refresh token
       responses:
         '200':
           description: Token refreshed successfully
@@ -157,66 +157,115 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      accessToken:
-                        type: string
-                      refreshToken:
-                        type: string
-                      expiresIn:
-                        type: string
+                  token:
+                    type: string
+                  refreshToken:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/UnauthorizedError'
+          $ref: '#/components/responses/Unauthorized'
 
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Logs out the user and invalidates the session
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+
+  /auth/change-password:
+    post:
+      tags:
+        - Authentication
+      summary: Change password
+      description: Changes authenticated user's password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                  description: Current password
+                newPassword:
+                  type: string
+                  minLength: 6
+                  description: New password
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/profile:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user profile
+      description: Returns the profile information of the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # Publication Routes
   /publications:
     get:
       tags:
         - Publications
-      summary: Get all publications
-      description: Retrieve a paginated list of publications with optional filtering
+      summary: List publications
+      description: Retrieves a paginated list of publications with filtering and sorting options
       parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 20
-        - name: author
-          in: query
-          schema:
-            type: string
-        - name: year
-          in: query
-          schema:
-            type: integer
-        - name: journal
-          in: query
-          schema:
-            type: string
-        - name: keywords
-          in: query
-          schema:
-            type: array
-            items:
-              type: string
-        - name: sort
-          in: query
-          schema:
-            type: string
-            enum: [createdAt, publicationYear, citationsCount, title]
-        - name: order
-          in: query
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/YearParam'
+        - $ref: '#/components/parameters/AuthorParam'
+        - $ref: '#/components/parameters/JournalParam'
+        - $ref: '#/components/parameters/MinCitationsParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/SortByParam'
+        - $ref: '#/components/parameters/SortOrderParam'
       responses:
         '200':
           description: Publications retrieved successfully
@@ -225,9 +274,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                  data:
+                  publications:
                     type: array
                     items:
                       $ref: '#/components/schemas/Publication'
@@ -238,7 +285,7 @@ paths:
       tags:
         - Publications
       summary: Create new publication
-      description: Add a new scientific publication to the database
+      description: Creates a new scientific publication with NLP processing
       security:
         - bearerAuth: []
       requestBody:
@@ -246,97 +293,120 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PublicationInput'
+              $ref: '#/components/schemas/PublicationCreate'
       responses:
         '201':
           description: Publication created successfully
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/Publication'
+                $ref: '#/components/schemas/Publication'
         '400':
-          $ref: '#/components/responses/ValidationError'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
+          $ref: '#/components/responses/Unauthorized'
 
   /publications/{id}:
     get:
       tags:
         - Publications
       summary: Get publication by ID
-      description: Retrieve detailed information about a specific publication
+      description: Retrieves detailed information about a specific publication
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/IdParam'
       responses:
         '200':
           description: Publication retrieved successfully
           content:
             application/json:
               schema:
+                $ref: '#/components/schemas/PublicationDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Publications
+      summary: Update publication
+      description: Updates an existing publication's information
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicationUpdate'
+      responses:
+        '200':
+          description: Publication updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Publication'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Publications
+      summary: Delete publication
+      description: Soft deletes a publication (marks as deleted)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Publication deleted successfully
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/Publication'
+                  message:
+                    type: string
         '404':
-          $ref: '#/components/responses/NotFoundError'
+          $ref: '#/components/responses/NotFound'
 
   /publications/search:
     post:
       tags:
         - Publications
       summary: Search publications
-      description: Advanced search with multiple filters and criteria
+      description: Performs full-text search on publications with advanced filtering
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - query
               properties:
                 query:
                   type: string
-                authors:
-                  type: array
-                  items:
-                    type: string
-                yearRange:
+                  description: Search query string
+                filters:
                   type: object
+                  description: Search filters
                   properties:
-                    start:
+                    year:
                       type: integer
-                    end:
+                    author:
+                      type: string
+                    journal:
+                      type: string
+                    minCitations:
                       type: integer
-                keywords:
-                  type: array
-                  items:
-                    type: string
-                journal:
-                  type: string
-                publicationType:
-                  type: string
-                  enum: [journal, conference, book, thesis, preprint, report, other]
-                accessType:
-                  type: string
-                  enum: [open, closed, hybrid]
-                limit:
-                  type: integer
-                  default: 20
                 page:
                   type: integer
                   default: 1
+                limit:
+                  type: integer
+                  default: 20
       responses:
         '200':
           description: Search results
@@ -345,126 +415,94 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                  data:
+                  publications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Publication'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  query:
+                    type: string
+                  filters:
+                    type: object
+
+  /publications/trending/{days}:
+    get:
+      tags:
+        - Publications
+      summary: Get trending publications
+      description: Retrieves publications with high citation activity in recent days
+      parameters:
+        - name: days
+          in: path
+          required: true
+          schema:
+            type: integer
+            default: 30
+          description: Number of days to look back for trending
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Trending publications retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Publication'
+                  period_days:
+                    type: integer
+                  total:
+                    type: integer
+
+  /publications/author/{authorId}:
+    get:
+      tags:
+        - Publications
+      summary: Get publications by author
+      description: Retrieves all publications by a specific author
+      parameters:
+        - name: authorId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Author ID
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Author publications retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publications:
                     type: array
                     items:
                       $ref: '#/components/schemas/Publication'
                   pagination:
                     $ref: '#/components/schemas/Pagination'
 
-  /authors:
+  /publications/keyword/{keyword}:
     get:
       tags:
-        - Authors
-      summary: Get all authors
-      description: Retrieve a paginated list of authors
+        - Publications
+      summary: Get publications by keyword
+      description: Retrieves publications containing a specific keyword
       parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 20
-        - name: role
-          in: query
-          schema:
-            type: string
-            enum: [user, researcher, admin]
-        - name: affiliation
-          in: query
-          schema:
-            type: string
-        - name: sort
-          in: query
-          schema:
-            type: string
-        - name: order
-          in: query
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: asc
-      responses:
-        '200':
-          description: Authors retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Author'
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
-
-  /authors/{id}:
-    get:
-      tags:
-        - Authors
-      summary: Get author by ID
-      description: Retrieve detailed information about a specific author
-      parameters:
-        - name: id
+        - name: keyword
           in: path
           required: true
           schema:
             type: string
-      responses:
-        '200':
-          description: Author retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      user:
-                        $ref: '#/components/schemas/User'
-                      profile:
-                        $ref: '#/components/schemas/AuthorProfile'
-                      recentPublications:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Publication'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-
-  /authors/{id}/publications:
-    get:
-      tags:
-        - Authors
-      summary: Get author's publications
-      description: Retrieve all publications by a specific author
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 20
+          description: Keyword to search for
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
       responses:
         '200':
           description: Publications retrieved successfully
@@ -473,122 +511,229 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                  data:
+                  publications:
                     type: array
                     items:
                       $ref: '#/components/schemas/Publication'
                   pagination:
                     $ref: '#/components/schemas/Pagination'
 
-  /dashboard/stats:
-    get:
+  /publications/import:
+    post:
       tags:
-        - Dashboard
-      summary: Get dashboard statistics
-      description: Retrieve overall statistics for the dashboard
+        - Publications
+      summary: Import publication from external source
+      description: Imports publication data from external databases (OpenAlex, Crossref, arXiv, PubMed)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - source
+                - identifier
+              properties:
+                source:
+                  type: string
+                  enum: [openalex, crossref, arxiv, pubmed]
+                  description: External data source
+                identifier:
+                  type: string
+                  description: Publication identifier in the external source
       responses:
-        '200':
-          description: Statistics retrieved successfully
+        '201':
+          description: Publication imported successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Publication'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Publication not found in external source
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      totalPublications:
-                        type: integer
-                      totalAuthors:
-                        type: integer
-                      totalCitations:
-                        type: integer
-                      publicationsByYear:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            _id:
-                              type: integer
-                            count:
-                              type: integer
-                      topJournals:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            _id:
-                              type: string
-                            count:
-                              type: integer
-                      recentPublications:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Publication'
-
-  /analytics:
-    get:
-      tags:
-        - Analytics
-      summary: Get analytics data
-      description: Retrieve comprehensive analytics data
-      parameters:
-        - name: timeRange
-          in: query
-          schema:
-            type: string
-            enum: [year, month, week, all]
-            default: year
-      responses:
-        '200':
-          description: Analytics data retrieved successfully
+                  error:
+                    type: string
+        '409':
+          description: Publication already exists
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      publicationMetrics:
-                        type: object
-                      authorMetrics:
-                        type: object
-                      publicationTypes:
-                        type: array
-                      accessTypes:
-                        type: array
-                      languages:
-                        type: array
+                  error:
+                    type: string
+                  existingPublication:
+                    $ref: '#/components/schemas/Publication'
 
-  /search:
+  # Author Routes
+  /authors:
     get:
       tags:
-        - Search
-      summary: Global search
-      description: Search across publications and authors
+        - Authors
+      summary: List authors
+      description: Retrieves a paginated list of authors with filtering options
       parameters:
-        - name: q
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 20
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/CountryParam'
+        - $ref: '#/components/parameters/AffiliationParam'
+        - $ref: '#/components/parameters/MinHIndexParam'
+        - $ref: '#/components/parameters/CareerStageParam'
+        - $ref: '#/components/parameters/SortByParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Authors retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Author'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Authors
+      summary: Create new author
+      description: Creates a new author profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorCreate'
+      responses:
+        '201':
+          description: Author created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Author'
+
+  /authors/{id}:
+    get:
+      tags:
+        - Authors
+      summary: Get author by ID
+      description: Retrieves detailed author information including publications and collaborators
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Author retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /authors/{id}/publications:
+    get:
+      tags:
+        - Authors
+      summary: Get author's publications
+      description: Retrieves all publications by a specific author
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Author publications retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Publication'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /authors/{id}/collaborators:
+    get:
+      tags:
+        - Authors
+      summary: Get author's collaborators
+      description: Retrieves collaboration network for a specific author
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Collaborators retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  author_id:
+                    type: string
+                  author_name:
+                    type: string
+                  collaborators:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Collaborator'
+                  total_collaborators:
+                    type: integer
+
+  /authors/search:
+    post:
+      tags:
+        - Authors
+      summary: Search authors
+      description: Performs full-text search on authors with advanced filtering
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: Search query string
+                filters:
+                  type: object
+                  description: Search filters
+                  properties:
+                    country:
+                      type: string
+                    affiliation:
+                      type: string
+                    minHIndex:
+                      type: integer
+                    careerStage:
+                      type: string
+                      enum: [phd_student, postdoc, assistant_professor, associate_professor, professor, researcher, industry_professional, retired]
+                page:
+                  type: integer
+                  default: 1
+                limit:
+                  type: integer
+                  default: 20
       responses:
         '200':
           description: Search results
@@ -597,351 +742,2587 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      publications:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Publication'
-                      authors:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Author'
+                  authors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Author'
                   pagination:
                     $ref: '#/components/schemas/Pagination'
+                  query:
+                    type: string
+                  filters:
+                    type: object
 
-  /search/suggestions:
+  /authors/top/{metric}:
     get:
       tags:
-        - Search
-      summary: Get search suggestions
-      description: Get autocomplete suggestions for search queries
+        - Authors
+      summary: Get top authors by metrics
+      description: Retrieves authors ranked by specific metrics
       parameters:
-        - name: q
-          in: query
+        - name: metric
+          in: path
           required: true
           schema:
             type: string
+            enum: [h_index, total_citations, total_publications]
+          description: Metric to sort by
         - name: limit
           in: query
           schema:
             type: integer
-            default: 10
+            default: 50
+          description: Number of results to return
+        - name: country
+          in: query
+          schema:
+            type: string
+          description: Filter by country
       responses:
         '200':
-          description: Suggestions retrieved successfully
+          description: Top authors retrieved
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success:
+                  authors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Author'
+                  metric:
+                    type: string
+                  total:
+                    type: integer
+
+  /authors/{id}/citation-network:
+    get:
+      tags:
+        - Authors
+      summary: Get author's citation network
+      description: Retrieves citation network analysis for a specific author
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Citation network retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  author_id:
+                    type: string
+                  author_name:
+                    type: string
+                  publications:
+                    type: integer
+                  citation_network:
+                    type: object
+                    properties:
+                      incoming_citations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Citation'
+                      outgoing_citations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Citation'
+                      total_incoming:
+                        type: integer
+                      total_outgoing:
+                        type: integer
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /authors/{id}/metrics:
+    put:
+      tags:
+        - Authors
+      summary: Update author metrics
+      description: Updates academic metrics for an author
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                h_index:
+                  type: integer
+                  minimum: 0
+                g_index:
+                  type: integer
+                  minimum: 0
+                i10_index:
+                  type: integer
+                  minimum: 0
+                total_citations:
+                  type: integer
+                  minimum: 0
+                total_publications:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: Author metrics updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  metrics:
+                    type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /authors/affiliation/{affiliationName}:
+    get:
+      tags:
+        - Authors
+      summary: Get authors by affiliation
+      description: Retrieves authors from a specific affiliation
+      parameters:
+        - name: affiliationName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Affiliation name
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Authors retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Author'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  affiliation:
+                    type: string
+
+  /authors/country/{countryName}:
+    get:
+      tags:
+        - Authors
+      summary: Get authors by country
+      description: Retrieves authors from a specific country
+      parameters:
+        - name: countryName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Country name
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Authors retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Author'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  country:
+                    type: string
+
+  # Citation Routes
+  /citations:
+    get:
+      tags:
+        - Citations
+      summary: List citations
+      description: Retrieves a paginated list of citations with filtering
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: citingPublicationId
+          in: query
+          schema:
+            type: string
+          description: Filter by citing publication ID
+        - name: citedPublicationId
+          in: query
+          schema:
+            type: string
+          description: Filter by cited publication ID
+        - name: citationType
+          in: query
+          schema:
+            type: string
+            enum: [supporting, contradicting, mentioning, background, methodology, comparison]
+        - name: sentiment
+          in: query
+          schema:
+            type: string
+            enum: [positive, negative, neutral]
+        - name: selfCitation
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Citations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  citations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Citation'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Citations
+      summary: Create new citation
+      description: Creates a new citation relationship between publications
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CitationCreate'
+      responses:
+        '201':
+          description: Citation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Citation'
+
+  /citations/{id}:
+    get:
+      tags:
+        - Citations
+      summary: Get citation by ID
+      description: Retrieves detailed citation information
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Citation retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /citations/publication/{publicationId}/cited-by:
+    get:
+      tags:
+        - Citations
+      summary: Get citations for publication
+      description: Retrieves all citations where this publication is cited
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Citations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  citations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Citation'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /citations/publication/{publicationId}/citing:
+    get:
+      tags:
+        - Citations
+      summary: Get citations made by a publication
+      description: Retrieves all citations where this publication cites other works
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Citing citations retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  citations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Citation'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /citations/publication/{publicationId}/network:
+    get:
+      tags:
+        - Citations
+      summary: Get citation network for publication
+      description: Retrieves citation network graph for a publication
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: depth
+          in: query
+          schema:
+            type: integer
+            default: 2
+          description: Network depth to analyze
+      responses:
+        '200':
+          description: Citation network retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publication_id:
+                    type: string
+                  network:
+                    type: object
+                  depth:
+                    type: integer
+
+  /citations/author/{authorId}/self-citations:
+    get:
+      tags:
+        - Citations
+      summary: Get self-citations for author
+      description: Retrieves self-citations made by an author
+      parameters:
+        - name: authorId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Self-citations retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  self_citations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Citation'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /citations/publication/{publicationId}/metrics:
+    get:
+      tags:
+        - Citations
+      summary: Get citation metrics for publication
+      description: Retrieves detailed citation metrics for a publication
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Citation metrics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publication_id:
+                    type: string
+                  metrics:
+                    type: object
+
+  /citations/publication/{publicationId}/bibliographic-coupling:
+    get:
+      tags:
+        - Citations
+      summary: Get bibliographic coupling
+      description: Retrieves bibliographically coupled papers
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: threshold
+          in: query
+          schema:
+            type: number
+            default: 0.1
+          description: Similarity threshold
+      responses:
+        '200':
+          description: Bibliographic coupling retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publication_id:
+                    type: string
+                  bibliographic_coupling:
+                    type: array
+                    items:
+                      type: object
+                  threshold:
+                    type: number
+
+  /citations/analyze:
+    post:
+      tags:
+        - Citations
+      summary: Analyze citation relationship
+      description: Performs NLP analysis of citation relationship
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - citing_text
+                - cited_text
+              properties:
+                citing_text:
+                  type: string
+                cited_text:
+                  type: string
+      responses:
+        '200':
+          description: Citation analysis completed
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /citations/batch:
+    post:
+      tags:
+        - Citations
+      summary: Batch create citations
+      description: Creates multiple citations in bulk
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - citations
+              properties:
+                citations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CitationCreate'
+      responses:
+        '201':
+          description: Batch citations created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                  summary:
+                    type: object
+
+  /citations/{id}/verify:
+    put:
+      tags:
+        - Citations
+      summary: Update citation verification status
+      description: Updates verification status of a citation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - verification_status
+              properties:
+                verification_status:
+                  type: string
+                  enum: [verified, unverified, disputed]
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Verification status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  verification_status:
+                    type: string
+
+  # Analytics Routes
+  /analytics/dashboard:
+    get:
+      tags:
+        - Analytics
+      summary: Get dashboard statistics
+      description: Retrieves overview statistics for the main dashboard
+      responses:
+        '200':
+          description: Dashboard statistics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  overview:
+                    type: object
+                    properties:
+                      total_publications:
+                        type: integer
+                      total_authors:
+                        type: integer
+                      total_citations:
+                        type: integer
+                      total_topics:
+                        type: integer
+                  recent_activity:
+                    type: object
+                    properties:
+                      recent_publications:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+                      top_authors:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Author'
+                      top_publications:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+                      trending_topics:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Topic'
+
+  /analytics/publications/trends:
+    get:
+      tags:
+        - Analytics
+      summary: Get publication trends over time
+      description: Retrieves publication trends over time with various granularities
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [year, month, quarter]
+            default: year
+        - name: years
+          in: query
+          schema:
+            type: string
+          description: Comma-separated years to analyze
+      responses:
+        '200':
+          description: Publication trends retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trends:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        _id:
+                          type: string
+                        count:
+                          type: integer
+                        total_citations:
+                          type: integer
+                  period:
+                    type: string
+                  years:
+                    type: array
+                    items:
+                      type: integer
+
+  /analytics/citations/trends:
+    get:
+      tags:
+        - Analytics
+      summary: Get citation trends over time
+      description: Retrieves citation trends analysis
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [year, month, quarter]
+            default: year
+        - name: years
+          in: query
+          schema:
+            type: string
+          description: Comma-separated years to analyze
+      responses:
+        '200':
+          description: Citation trends retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trends:
+                    type: array
+                    items:
+                      type: object
+                  period:
+                    type: string
+                  years:
+                    type: array
+                    items:
+                      type: integer
+
+  /analytics/topics/trends:
+    get:
+      tags:
+        - Analytics
+      summary: Get topic trends analysis
+      description: Retrieves trending topics and category distribution
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [total_publications, total_citations, popularity_score]
+      responses:
+        '200':
+          description: Topic trends retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trending_topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+                  category_distribution:
+                    type: array
+                    items:
+                      type: object
+
+  /analytics/authors/productivity:
+    get:
+      tags:
+        - Analytics
+      summary: Get author productivity metrics
+      description: Retrieves author productivity analysis
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: metric
+          in: query
+          schema:
+            type: string
+            enum: [total_publications, total_citations, h_index, publications_per_year]
+      responses:
+        '200':
+          description: Author productivity retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Author'
+                  metric:
+                    type: string
+                  total:
+                    type: integer
+
+  /analytics/collaborations/network:
+    get:
+      tags:
+        - Analytics
+      summary: Get collaboration network analysis
+      description: Retrieves author collaboration network data
+      parameters:
+        - name: minCollaborations
+          in: query
+          schema:
+            type: integer
+            default: 5
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Collaboration network data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        collaboration_count:
+                          type: integer
+                  edges:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                        target:
+                          type: string
+                        weight:
+                          type: integer
+                        last_collaboration_year:
+                          type: integer
+                  metrics:
+                    type: object
+                    properties:
+                      total_nodes:
+                        type: integer
+                      total_edges:
+                        type: integer
+                      min_collaborations:
+                        type: integer
+
+  /analytics/geographic/distribution:
+    get:
+      tags:
+        - Analytics
+      summary: Get geographic distribution analysis
+      description: Retrieves geographic distribution of authors, publications, or citations
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [authors, publications, citations]
+            default: authors
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Geographic distribution retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                  distribution:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        country:
+                          type: string
+                        count:
+                          type: integer
+                        total_citations:
+                          type: integer
+                        avg_h_index:
+                          type: number
+
+  /analytics/venues/analysis:
+    get:
+      tags:
+        - Analytics
+      summary: Get venue analysis
+      description: Retrieves analysis of journals and conferences
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [journals, conferences]
+            default: journals
+        - name: metric
+          in: query
+          schema:
+            type: string
+            enum: [publications, citations, impact]
+            default: publications
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Venue analysis retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                  metric:
+                    type: string
+                  venues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        publication_count:
+                          type: integer
+                        total_citations:
+                          type: integer
+                        avg_citations:
+                          type: number
+                        unique_authors:
+                          type: integer
+
+  /analytics/citations/impact:
+    get:
+      tags:
+        - Analytics
+      summary: Get citation impact analysis
+      description: Retrieves high-impact publications analysis
+      parameters:
+        - name: timeframe
+          in: query
+          schema:
+            type: string
+            enum: [1year, 3years, 5years, 10years]
+            default: 5years
+        - name: minCitations
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+      responses:
+        '200':
+          description: Citation impact analysis retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timeframe:
+                    type: string
+                  min_citations:
+                    type: integer
+                  metrics:
+                    type: object
+                  top_contributing_authors:
+                    type: array
+                    items:
+                      type: object
+                  sample_publications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Publication'
+
+  /analytics/research/trends:
+    get:
+      tags:
+        - Analytics
+      summary: Get research trends and predictions
+      description: Retrieves research trend analysis and predictions
+      parameters:
+        - name: years
+          in: query
+          schema:
+            type: integer
+            default: 5
+            minimum: 1
+            maximum: 20
+        - name: topicCount
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 5
+            maximum: 50
+      responses:
+        '200':
+          description: Research trends retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  analysis_period:
+                    type: object
+                  topic_trends:
+                    type: array
+                    items:
+                      type: object
+                  emerging_topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+                  declining_topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+
+  # Topic Routes
+  /topics:
+    get:
+      tags:
+        - Topics
+      summary: List topics
+      description: Retrieves a paginated list of topics with filtering
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [stem, social_sciences, humanities, arts, interdisciplinary, other]
+        - name: field
+          in: query
+          schema:
+            type: string
+        - name: trendDirection
+          in: query
+          schema:
+            type: string
+            enum: [emerging, growing, stable, declining, resurgent]
+        - $ref: '#/components/parameters/SortByParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Topics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Topics
+      summary: Create new topic
+      description: Creates a new topic with hierarchical structure
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopicCreate'
+      responses:
+        '201':
+          description: Topic created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Topic'
+
+  /topics/{id}:
+    get:
+      tags:
+        - Topics
+      summary: Get topic by ID
+      description: Retrieves detailed topic information with analytics
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Topic retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topic:
+                    $ref: '#/components/schemas/TopicDetail'
+                  analytics:
+                    type: object
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /topics/trending/{limit}:
+    get:
+      tags:
+        - Topics
+      summary: Get trending topics
+      description: Retrieves topics with high growth or popularity
+      parameters:
+        - name: limit
+          in: path
+          required: true
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Trending topics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+                  total:
+                    type: integer
+
+  /topics/search:
+    post:
+      tags:
+        - Topics
+      summary: Search topics
+      description: Performs full-text search on topics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                filters:
+                  type: object
+                page:
+                  type: integer
+                  default: 1
+                limit:
+                  type: integer
+                  default: 20
+      responses:
+        '200':
+          description: Topic search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /topics/top/{metric}:
+    get:
+      tags:
+        - Topics
+      summary: Get top topics by metrics
+      description: Retrieves topics ranked by specific metrics
+      parameters:
+        - name: metric
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [total_publications, total_citations, popularity_score]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [stem, social_sciences, humanities, arts, interdisciplinary, other]
+      responses:
+        '200':
+          description: Top topics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+                  metric:
+                    type: string
+                  total:
+                    type: integer
+
+  /topics/hierarchy/{rootId}:
+    get:
+      tags:
+        - Topics
+      summary: Get topic hierarchy
+      description: Retrieves hierarchical structure of topics
+      parameters:
+        - name: rootId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Topic hierarchy retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /topics/{id}/words:
+    get:
+      tags:
+        - Topics
+      summary: Get topic words
+      description: Retrieves important words for a topic
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - name: nWords
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Topic words retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topic_id:
+                    type: string
+                  words:
+                    type: object
+                  count:
+                    type: integer
+
+  /topics/{id}/publications:
+    get:
+      tags:
+        - Topics
+      summary: Get publications for topic
+      description: Retrieves publications associated with a topic
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [publication_year, citations_count, created_at]
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+      responses:
+        '200':
+          description: Topic publications retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Publication'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /topics/{id}/related:
+    get:
+      tags:
+        - Topics
+      summary: Get related topics
+      description: Retrieves topics related to a specific topic
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 20
+        - name: relationshipType
+          in: query
+          schema:
+            type: string
+            enum: [similar, parent, child, overlapping, competing, complementary]
+      responses:
+        '200':
+          description: Related topics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topic_id:
+                    type: string
+                  related_topics:
+                    type: array
+                    items:
+                      type: object
+                  total:
+                    type: integer
+
+  /topics/{id}/validate:
+    put:
+      tags:
+        - Topics
+      summary: Update topic validation status
+      description: Updates validation status of a topic
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - validation_status
+              properties:
+                validation_status:
+                  type: string
+                  enum: [pending, validated, disputed, deprecated]
+                validation_notes:
+                  type: string
+      responses:
+        '200':
+          description: Validation status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  validation_status:
+                    type: string
+
+  /topics/{id}/statistics:
+    get:
+      tags:
+        - Topics
+      summary: Get topic statistics
+      description: Retrieves detailed statistics for a topic
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Topic statistics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topic_id:
+                    type: string
+                  analytics:
+                    type: object
+
+  # Import/Export Routes
+  /import/upload:
+    post:
+      tags:
+        - Import/Export
+      summary: Upload document file
+      description: Uploads and processes a document file (PDF, DOC, DOCX, TXT)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                title:
+                  type: string
+                authors:
+                  type: string
+                year:
+                  type: integer
+                keywords:
+                  type: string
+                abstract:
+                  type: string
+      responses:
+        '200':
+          description: File uploaded and processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  file:
+                    $ref: '#/components/schemas/FileInfo'
+                  result:
+                    type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /import/csv:
+    post:
+      tags:
+        - Import/Export
+      summary: Import from CSV
+      description: Imports publications from a CSV file
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                batchSize:
+                  type: integer
+                  default: 50
+                updateExisting:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: CSV import completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  file:
+                    type: string
+                  result:
+                    $ref: '#/components/schemas/ImportResult'
+
+  /import/json:
+    post:
+      tags:
+        - Import/Export
+      summary: Import from JSON
+      description: Imports publications from a JSON file
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                batchSize:
+                  type: integer
+                  default: 50
+                updateExisting:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: JSON import completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  file:
+                    type: string
+                  result:
+                    $ref: '#/components/schemas/ImportResult'
+
+  /import/batch:
+    post:
+      tags:
+        - Import/Export
+      summary: Batch import multiple files
+      description: Imports multiple files in batch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - files
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 10
+                batchSize:
+                  type: integer
+                  default: 50
+                updateExisting:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Batch import completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  files:
+                    type: array
+                    items:
+                      type: object
+                  result:
+                    type: object
+
+  /import/extract-info:
+    post:
+      tags:
+        - Import/Export
+      summary: Extract structured information from document
+      description: Extracts structured data from uploaded document
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Information extracted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file:
+                    $ref: '#/components/schemas/FileInfo'
+                  extracted_info:
+                    type: object
+
+  /import/validate:
+    post:
+      tags:
+        - Import/Export
+      summary: Validate import data
+      description: Validates data structure before import
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+                - format
+              properties:
+                data:
+                  type: object
+                format:
+                  type: string
+                  enum: [json, csv]
+      responses:
+        '200':
+          description: Data validation completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_records:
+                    type: integer
+                  valid_records:
+                    type: integer
+                  invalid_records:
+                    type: integer
+                  validation_errors:
+                    type: array
+                    items:
+                      type: object
+                  is_valid:
                     type: boolean
-                  data:
+
+  /import/status:
+    get:
+      tags:
+        - Import/Export
+      summary: Get import status and configuration
+      description: Retrieves current import service status
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Import status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  import_service:
+                    type: object
+                  etl_service:
+                    type: object
+
+  /import/etl/trigger:
+    post:
+      tags:
+        - Import/Export
+      summary: Trigger manual ETL
+      description: Manually triggers ETL processes
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sources:
+                  type: array
+                  items:
+                    type: string
+                    enum: [openalex, crossref]
+                  default: [openalex, crossref]
+                fullSync:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: ETL process started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  sources:
                     type: array
                     items:
                       type: string
+                  full_sync:
+                    type: boolean
+                  result:
+                    type: object
+
+  /import/etl/status:
+    get:
+      tags:
+        - Import/Export
+      summary: Get ETL job status
+      description: Retrieves status of ETL jobs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: ETL status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /import/cleanup:
+    delete:
+      tags:
+        - Import/Export
+      summary: Clean up old upload files
+      description: Removes old temporary upload files
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxAge:
+                  type: integer
+                  default: 86400000
+                  description: Maximum age in milliseconds
+      responses:
+        '200':
+          description: Cleanup completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  max_age_hours:
+                    type: number
+                  result:
+                    type: object
+
+  /import/statistics:
+    get:
+      tags:
+        - Import/Export
+      summary: Get import statistics
+      description: Retrieves comprehensive import statistics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Import statistics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  overview:
+                    type: object
+                    properties:
+                      total_publications:
+                        type: integer
+                      total_authors:
+                        type: integer
+                      total_citations:
+                        type: integer
+                      recent_imports:
+                        type: integer
+                  imports_by_source:
+                    type: array
+                    items:
+                      type: object
+                  import_service:
+                    type: object
+                  etl_service:
+                    type: object
+
+  /import/export:
+    get:
+      tags:
+        - Import/Export
+      summary: Export publications
+      description: Exports publications data in specified format
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [json, csv]
+        - name: filters
+          in: query
+          schema:
+            type: object
+      responses:
+        '200':
+          description: Export file download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
 
 components:
-  schemas:
-    User:
-      type: object
-      properties:
-        _id:
-          type: string
-        name:
-          type: string
-        email:
-          type: string
-        role:
-          type: string
-          enum: [user, researcher, admin]
-        affiliation:
-          type: string
-        researchInterests:
-          type: array
-          items:
-            type: string
-        createdAt:
-          type: string
-          format: date-time
-        lastLogin:
-          type: string
-          format: date-time
-
-    Author:
-      type: object
-      properties:
-        _id:
-          type: string
-        name:
-          type: string
-        email:
-          type: string
-        affiliation:
-          type: string
-        role:
-          type: string
-
-    Publication:
-      type: object
-      properties:
-        _id:
-          type: string
-        title:
-          type: string
-        abstract:
-          type: string
-        authors:
-          type: array
-          items:
-            type: object
-            properties:
-              author:
-                $ref: '#/components/schemas/Author'
-              order:
-                type: integer
-              isCorresponding:
-                type: boolean
-        keywords:
-          type: array
-          items:
-            type: string
-        publicationYear:
-          type: integer
-        journal:
-          type: object
-          properties:
-            name:
-              type: string
-            volume:
-              type: string
-            issue:
-              type: string
-            pages:
-              type: string
-            issn:
-              type: string
-        conference:
-          type: object
-          properties:
-            name:
-              type: string
-            location:
-              type: string
-            dates:
-              type: object
-        doi:
-          type: string
-        citationsCount:
-          type: integer
-        publicationType:
-          type: string
-          enum: [journal, conference, book, thesis, preprint, report, other]
-        accessType:
-          type: string
-          enum: [open, closed, hybrid]
-        language:
-          type: string
-        topics:
-          type: array
-          items:
-            type: object
-            properties:
-              name:
-                type: string
-              weight:
-                type: number
-              keywords:
-                type: array
-                items:
-                  type: string
-        metrics:
-          type: object
-          properties:
-            views:
-              type: integer
-            downloads:
-              type: integer
-            shares:
-              type: integer
-        createdAt:
-          type: string
-          format: date-time
-
-    PublicationInput:
-      type: object
-      required:
-        - title
-        - abstract
-        - authors
-        - publicationYear
-      properties:
-        title:
-          type: string
-        abstract:
-          type: string
-        authors:
-          type: array
-          items:
-            type: object
-            properties:
-              author:
-                type: string
-              order:
-                type: integer
-              isCorresponding:
-                type: boolean
-        keywords:
-          type: array
-          items:
-            type: string
-        publicationYear:
-          type: integer
-        journal:
-          type: object
-        conference:
-          type: object
-        doi:
-          type: string
-        publicationType:
-          type: string
-        accessType:
-          type: string
-        language:
-          type: string
-        topics:
-          type: array
-
-    AuthorProfile:
-      type: object
-      properties:
-        _id:
-          type: string
-        user:
-          type: string
-        academicTitle:
-          type: string
-        department:
-          type: string
-        faculty:
-          type: string
-        orcid:
-          type: string
-        bio:
-          type: string
-        researchInterests:
-          type: array
-          items:
-            type: object
-            properties:
-              name:
-                type: string
-              weight:
-                type: number
-        education:
-          type: array
-          items:
-            type: object
-        workExperience:
-          type: array
-          items:
-            type: object
-        awards:
-          type: array
-          items:
-            type: object
-        metrics:
-          type: object
-          properties:
-            hIndex:
-              type: integer
-            i10Index:
-              type: integer
-            totalCitations:
-              type: integer
-            publicationsCount:
-              type: integer
-
-    Pagination:
-      type: object
-      properties:
-        page:
-          type: integer
-        limit:
-          type: integer
-        total:
-          type: integer
-        pages:
-          type: integer
-
-    ErrorResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: false
-        error:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-
-  responses:
-    ValidationError:
-      description: Validation error
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-
-    UnauthorizedError:
-      description: Unauthorized access
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-
-    ForbiddenError:
-      description: Access forbidden
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-
-    NotFoundError:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-
-    ConflictError:
-      description: Resource conflict
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
 
-tags:
-  - name: Authentication
-    description: User authentication and authorization
-  - name: Publications
-    description: Scientific publications management
-  - name: Authors
-    description: Author profiles and information
-  - name: Dashboard
-    description: Dashboard statistics and overview
-  - name: Analytics
-    description: Advanced analytics and insights
-  - name: Search
-    description: Search functionality and suggestions
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Resource ID
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+      description: Page number for pagination
+
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+      description: Number of items per page
+
+    YearParam:
+      name: year
+      in: query
+      schema:
+        type: integer
+        minimum: 1800
+        maximum: 2100
+      description: Publication year filter
+
+    AuthorParam:
+      name: author
+      in: query
+      schema:
+        type: string
+      description: Filter by author name
+
+    JournalParam:
+      name: journal
+      in: query
+      schema:
+        type: string
+      description: Filter by journal name
+
+    MinCitationsParam:
+      name: minCitations
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+      description: Minimum citation count filter
+
+    SearchParam:
+      name: search
+      in: query
+      schema:
+        type: string
+      description: Full-text search query
+
+    SortByParam:
+      name: sortBy
+      in: query
+      schema:
+        type: string
+        enum: [created_at, title, citations_count, publication_year, h_index, total_citations, popularity_score]
+      description: Field to sort by
+
+    SortOrderParam:
+      name: sortOrder
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+      description: Sort order
+
+    CountryParam:
+      name: country
+      in: query
+      schema:
+        type: string
+      description: Filter by country
+
+    AffiliationParam:
+      name: affiliation
+      in: query
+      schema:
+        type: string
+      description: Filter by affiliation name
+
+    MinHIndexParam:
+      name: minHIndex
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+      description: Minimum h-index filter
+
+    CareerStageParam:
+      name: careerStage
+      in: query
+      schema:
+        type: string
+        enum: [phd_student, postdoc, assistant_professor, associate_professor, professor, researcher, industry_professional, retired]
+      description: Filter by career stage
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        full_name:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        email_verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    UserProfile:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            first_name:
+              type: string
+            last_name:
+              type: string
+            avatar:
+              type: string
+            bio:
+              type: string
+            institution:
+              $ref: '#/components/schemas/Institution'
+            research_interests:
+              type: array
+              items:
+                type: string
+            academic_profile:
+              $ref: '#/components/schemas/AcademicProfile'
+            preferences:
+              $ref: '#/components/schemas/UserPreferences'
+            statistics:
+              $ref: '#/components/schemas/UserStatistics'
+            profile_completion:
+              type: integer
+
+    Institution:
+      type: object
+      properties:
+        name:
+          type: string
+        department:
+          type: string
+        position:
+          type: string
+        country:
+          type: string
+
+    AcademicProfile:
+      type: object
+      properties:
+        google_scholar:
+          type: string
+        researchgate:
+          type: string
+        linkedin:
+          type: string
+        personal_website:
+          type: string
+
+    UserPreferences:
+      type: object
+      properties:
+        language:
+          type: string
+        timezone:
+          type: string
+        email_notifications:
+          type: boolean
+        newsletter:
+          type: boolean
+        privacy:
+          type: object
+          properties:
+            profile_visibility:
+              type: string
+            show_email:
+              type: boolean
+
+    UserStatistics:
+      type: object
+      properties:
+        publications_viewed:
+          type: integer
+        searches_performed:
+          type: integer
+        downloads:
+          type: integer
+        citations_added:
+          type: integer
+
+    Session:
+      type: object
+      properties:
+        session_id:
+          type: string
+        ip_address:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_activity:
+          type: string
+          format: date-time
+        is_current:
+          type: boolean
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        last_used:
+          type: string
+          format: date-time
+        usage_count:
+          type: integer
+
+    Publication:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        abstract:
+          type: string
+        publication_year:
+          type: integer
+        doi:
+          type: string
+        authors:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthorReference'
+        journal:
+          $ref: '#/components/schemas/Journal'
+        citations_count:
+          type: integer
+        keywords:
+          type: array
+          items:
+            $ref: '#/components/schemas/Keyword'
+        created_at:
+          type: string
+          format: date-time
+
+    PublicationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Publication'
+        - type: object
+          properties:
+            full_text:
+              type: string
+            embeddings:
+              $ref: '#/components/schemas/Embeddings'
+            sentiment_score:
+              $ref: '#/components/schemas/SentimentScore'
+            topics:
+              type: array
+              items:
+                $ref: '#/components/schemas/TopicReference'
+            citations:
+              type: array
+              items:
+                $ref: '#/components/schemas/CitationReference'
+            references:
+              type: array
+              items:
+                $ref: '#/components/schemas/CitationReference'
+
+    PublicationCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+        abstract:
+          type: string
+        publication_year:
+          type: integer
+        doi:
+          type: string
+        authors:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthorReference'
+        journal:
+          $ref: '#/components/schemas/Journal'
+        keywords:
+          type: array
+          items:
+            $ref: '#/components/schemas/Keyword'
+
+    PublicationUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        abstract:
+          type: string
+        publication_year:
+          type: integer
+        doi:
+          type: string
+        authors:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthorReference'
+        journal:
+          $ref: '#/components/schemas/Journal'
+        keywords:
+          type: array
+          items:
+            $ref: '#/components/schemas/Keyword'
+
+    AuthorReference:
+      type: object
+      properties:
+        author_id:
+          type: string
+        name:
+          type: string
+        order:
+          type: integer
+        affiliation:
+          type: string
+
+    Journal:
+      type: object
+      properties:
+        name:
+          type: string
+        volume:
+          type: string
+        issue:
+          type: string
+        pages:
+          type: string
+        issn:
+          type: string
+        publisher:
+          type: string
+
+    Keyword:
+      type: object
+      properties:
+        term:
+          type: string
+        weight:
+          type: number
+        source:
+          type: string
+
+    Embeddings:
+      type: object
+      properties:
+        title_vector:
+          type: array
+          items:
+            type: number
+        abstract_vector:
+          type: array
+          items:
+            type: number
+        full_text_vector:
+          type: array
+          items:
+            type: number
+        model_version:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+
+    SentimentScore:
+      type: object
+      properties:
+        positive:
+          type: number
+        negative:
+          type: number
+        neutral:
+          type: number
+
+    TopicReference:
+      type: object
+      properties:
+        topic_id:
+          type: string
+        confidence:
+          type: number
+        method:
+          type: string
+
+    CitationReference:
+      type: object
+      properties:
+        publication_id:
+          type: string
+        title:
+          type: string
+        authors:
+          type: array
+          items:
+            type: string
+        year:
+          type: integer
+
+    Author:
+      type: object
+      properties:
+        id:
+          type: string
+        full_name:
+          type: string
+        orcid:
+          type: string
+        h_index:
+          type: integer
+        total_citations:
+          type: integer
+        total_publications:
+          type: integer
+        affiliations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Institution'
+        research_interests:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    AuthorDetail:
+      allOf:
+        - $ref: '#/components/schemas/Author'
+        - type: object
+          properties:
+            publications:
+              type: array
+              items:
+                $ref: '#/components/schemas/Publication'
+            collaborators:
+              type: array
+              items:
+                $ref: '#/components/schemas/Collaborator'
+            statistics:
+              type: object
+              properties:
+                citations_per_publication:
+                  type: number
+                publications_per_year:
+                  type: number
+                collaboration_count:
+                  type: integer
+
+    AuthorCreate:
+      type: object
+      required:
+        - first_name
+        - last_name
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        orcid:
+          type: string
+        affiliations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Institution'
+
+    Collaborator:
+      type: object
+      properties:
+        author:
+          $ref: '#/components/schemas/Author'
+        collaboration_count:
+          type: integer
+        last_collaboration_year:
+          type: integer
+
+    Citation:
+      type: object
+      properties:
+        id:
+          type: string
+        citing_publication_id:
+          type: string
+        cited_publication_id:
+          type: string
+        citation_type:
+          type: string
+        sentiment:
+          type: string
+        self_citation:
+          type: boolean
+        semantic_similarity:
+          type: number
+        created_at:
+          type: string
+          format: date-time
+
+    CitationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Citation'
+        - type: object
+          properties:
+            citation_text:
+              type: string
+            citation_position:
+              type: string
+            citation_strength:
+              type: number
+            citing_publication:
+              $ref: '#/components/schemas/Publication'
+            cited_publication:
+              $ref: '#/components/schemas/Publication'
+
+    CitationCreate:
+      type: object
+      required:
+        - citing_publication_id
+        - cited_publication_id
+      properties:
+        citing_publication_id:
+          type: string
+        cited_publication_id:
+          type: string
+        citation_text:
+          type: string
+        citation_type:
+          type: string
+        citation_position:
+          type: string
+
+    Topic:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        keywords:
+          type: array
+          items:
+            $ref: '#/components/schemas/Keyword'
+        total_publications:
+          type: integer
+        total_citations:
+          type: integer
+        popularity_score:
+          type: number
+        trend_direction:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    TopicDetail:
+      allOf:
+        - $ref: '#/components/schemas/Topic'
+        - type: object
+          properties:
+            parent_topic:
+              $ref: '#/components/schemas/Topic'
+            children:
+              type: array
+              items:
+                $ref: '#/components/schemas/Topic'
+            related_topics:
+              type: array
+              items:
+                $ref: '#/components/schemas/RelatedTopic'
+            top_authors:
+              type: array
+              items:
+                $ref: '#/components/schemas/Author'
+            top_journals:
+              type: array
+              items:
+                $ref: '#/components/schemas/Journal'
+
+    TopicCreate:
+      type: object
+      required:
+        - name
+        - category
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        keywords:
+          type: array
+          items:
+            $ref: '#/components/schemas/Keyword'
+        parent_topic_id:
+          type: string
+
+    RelatedTopic:
+      type: object
+      properties:
+        topic:
+          $ref: '#/components/schemas/Topic'
+        relationship_type:
+          type: string
+        similarity_score:
+          type: number
+
+    Pagination:
+      type: object
+      properties:
+        current:
+          type: integer
+        pages:
+          type: integer
+        total:
+          type: integer
+        limit:
+          type: integer
+
+    FileInfo:
+      type: object
+      properties:
+        originalname:
+          type: string
+        filename:
+          type: string
+        size:
+          type: integer
+        mimetype:
+          type: string
+
+    ImportResult:
+      type: object
+      properties:
+        total:
+          type: integer
+        processed:
+          type: integer
+        created:
+          type: integer
+        updated:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              row:
+                type: integer
+              error:
+                type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              errors:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    field:
+                      type: string
+                    message:
+                      type: string
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+    Conflict:
+      description: Resource already exists
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              field:
+                type: string

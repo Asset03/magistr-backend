@@ -1,0 +1,1120 @@
+/citations/publication/{publicationId}/citing:
+    get:
+      tags:
+        - Citations
+      summary: Get citations made by a publication
+      description: Retrieves all citations where this publication cites other works
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Citing citations retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  citations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Citation'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /citations/publication/{publicationId}/network:
+    get:
+      tags:
+        - Citations
+      summary: Get citation network for publication
+      description: Retrieves citation network graph for a publication
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: depth
+          in: query
+          schema:
+            type: integer
+            default: 2
+          description: Network depth to analyze
+      responses:
+        '200':
+          description: Citation network retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publication_id:
+                    type: string
+                  network:
+                    type: object
+                  depth:
+                    type: integer
+
+  /citations/author/{authorId}/self-citations:
+    get:
+      tags:
+        - Citations
+      summary: Get self-citations for author
+      description: Retrieves self-citations made by an author
+      parameters:
+        - name: authorId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Self-citations retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  self_citations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Citation'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /citations/publication/{publicationId}/metrics:
+    get:
+      tags:
+        - Citations
+      summary: Get citation metrics for publication
+      description: Retrieves detailed citation metrics for a publication
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Citation metrics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publication_id:
+                    type: string
+                  metrics:
+                    type: object
+
+  /citations/publication/{publicationId}/bibliographic-coupling:
+    get:
+      tags:
+        - Citations
+      summary: Get bibliographic coupling
+      description: Retrieves bibliographically coupled papers
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: threshold
+          in: query
+          schema:
+            type: number
+            default: 0.1
+          description: Similarity threshold
+      responses:
+        '200':
+          description: Bibliographic coupling retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publication_id:
+                    type: string
+                  bibliographic_coupling:
+                    type: array
+                    items:
+                      type: object
+                  threshold:
+                    type: number
+
+  /citations/analyze:
+    post:
+      tags:
+        - Citations
+      summary: Analyze citation relationship
+      description: Performs NLP analysis of citation relationship
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - citing_text
+                - cited_text
+              properties:
+                citing_text:
+                  type: string
+                cited_text:
+                  type: string
+      responses:
+        '200':
+          description: Citation analysis completed
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /citations/batch:
+    post:
+      tags:
+        - Citations
+      summary: Batch create citations
+      description: Creates multiple citations in bulk
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - citations
+              properties:
+                citations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CitationCreate'
+      responses:
+        '201':
+          description: Batch citations created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                  summary:
+                    type: object
+
+  /citations/{id}/verify:
+    put:
+      tags:
+        - Citations
+      summary: Update citation verification status
+      description: Updates verification status of a citation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - verification_status
+              properties:
+                verification_status:
+                  type: string
+                  enum: [verified, unverified, disputed]
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Verification status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  verification_status:
+                    type: string
+
+  /analytics/citations/trends:
+    get:
+      tags:
+        - Analytics
+      summary: Get citation trends over time
+      description: Retrieves citation trends analysis
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [year, month, quarter]
+            default: year
+        - name: years
+          in: query
+          schema:
+            type: string
+          description: Comma-separated years to analyze
+      responses:
+        '200':
+          description: Citation trends retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trends:
+                    type: array
+                    items:
+                      type: object
+                  period:
+                    type: string
+                  years:
+                    type: array
+                    items:
+                      type: integer
+
+  /analytics/topics/trends:
+    get:
+      tags:
+        - Analytics
+      summary: Get topic trends analysis
+      description: Retrieves trending topics and category distribution
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [total_publications, total_citations, popularity_score]
+      responses:
+        '200':
+          description: Topic trends retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trending_topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+                  category_distribution:
+                    type: array
+                    items:
+                      type: object
+
+  /analytics/authors/productivity:
+    get:
+      tags:
+        - Analytics
+      summary: Get author productivity metrics
+      description: Retrieves author productivity analysis
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: metric
+          in: query
+          schema:
+            type: string
+            enum: [total_publications, total_citations, h_index, publications_per_year]
+      responses:
+        '200':
+          description: Author productivity retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Author'
+                  metric:
+                    type: string
+                  total:
+                    type: integer
+
+  /analytics/geographic/distribution:
+    get:
+      tags:
+        - Analytics
+      summary: Get geographic distribution analysis
+      description: Retrieves geographic distribution of authors, publications, or citations
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [authors, publications, citations]
+            default: authors
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Geographic distribution retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                  distribution:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        country:
+                          type: string
+                        count:
+                          type: integer
+                        total_citations:
+                          type: integer
+                        avg_h_index:
+                          type: number
+
+  /analytics/venues/analysis:
+    get:
+      tags:
+        - Analytics
+      summary: Get venue analysis
+      description: Retrieves analysis of journals and conferences
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [journals, conferences]
+            default: journals
+        - name: metric
+          in: query
+          schema:
+            type: string
+            enum: [publications, citations, impact]
+            default: publications
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Venue analysis retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                  metric:
+                    type: string
+                  venues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        publication_count:
+                          type: integer
+                        total_citations:
+                          type: integer
+                        avg_citations:
+                          type: number
+                        unique_authors:
+                          type: integer
+
+  /analytics/citations/impact:
+    get:
+      tags:
+        - Analytics
+      summary: Get citation impact analysis
+      description: Retrieves high-impact publications analysis
+      parameters:
+        - name: timeframe
+          in: query
+          schema:
+            type: string
+            enum: [1year, 3years, 5years, 10years]
+            default: 5years
+        - name: minCitations
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+      responses:
+        '200':
+          description: Citation impact analysis retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timeframe:
+                    type: string
+                  min_citations:
+                    type: integer
+                  metrics:
+                    type: object
+                  top_contributing_authors:
+                    type: array
+                    items:
+                      type: object
+                  sample_publications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Publication'
+
+  /analytics/research/trends:
+    get:
+      tags:
+        - Analytics
+      summary: Get research trends and predictions
+      description: Retrieves research trend analysis and predictions
+      parameters:
+        - name: years
+          in: query
+          schema:
+            type: integer
+            default: 5
+            minimum: 1
+            maximum: 20
+        - name: topicCount
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 5
+            maximum: 50
+      responses:
+        '200':
+          description: Research trends retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  analysis_period:
+                    type: object
+                  topic_trends:
+                    type: array
+                    items:
+                      type: object
+                  emerging_topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+                  declining_topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+
+  /topics/search:
+    post:
+      tags:
+        - Topics
+      summary: Search topics
+      description: Performs full-text search on topics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                filters:
+                  type: object
+                page:
+                  type: integer
+                  default: 1
+                limit:
+                  type: integer
+                  default: 20
+      responses:
+        '200':
+          description: Topic search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /topics/top/{metric}:
+    get:
+      tags:
+        - Topics
+      summary: Get top topics by metrics
+      description: Retrieves topics ranked by specific metrics
+      parameters:
+        - name: metric
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [total_publications, total_citations, popularity_score]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [stem, social_sciences, humanities, arts, interdisciplinary, other]
+      responses:
+        '200':
+          description: Top topics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Topic'
+                  metric:
+                    type: string
+                  total:
+                    type: integer
+
+  /topics/hierarchy/{rootId}:
+    get:
+      tags:
+        - Topics
+      summary: Get topic hierarchy
+      description: Retrieves hierarchical structure of topics
+      parameters:
+        - name: rootId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Topic hierarchy retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /topics/{id}/words:
+    get:
+      tags:
+        - Topics
+      summary: Get topic words
+      description: Retrieves important words for a topic
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - name: nWords
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Topic words retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topic_id:
+                    type: string
+                  words:
+                    type: object
+                  count:
+                    type: integer
+
+  /topics/{id}/publications:
+    get:
+      tags:
+        - Topics
+      summary: Get publications for topic
+      description: Retrieves publications associated with a topic
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [publication_year, citations_count, created_at]
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+      responses:
+        '200':
+          description: Topic publications retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Publication'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /topics/{id}/related:
+    get:
+      tags:
+        - Topics
+      summary: Get related topics
+      description: Retrieves topics related to a specific topic
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 20
+        - name: relationshipType
+          in: query
+          schema:
+            type: string
+            enum: [similar, parent, child, overlapping, competing, complementary]
+      responses:
+        '200':
+          description: Related topics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topic_id:
+                    type: string
+                  related_topics:
+                    type: array
+                    items:
+                      type: object
+                  total:
+                    type: integer
+
+  /topics/{id}/validate:
+    put:
+      tags:
+        - Topics
+      summary: Update topic validation status
+      description: Updates validation status of a topic
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - validation_status
+              properties:
+                validation_status:
+                  type: string
+                  enum: [pending, validated, disputed, deprecated]
+                validation_notes:
+                  type: string
+      responses:
+        '200':
+          description: Validation status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  validation_status:
+                    type: string
+
+  /topics/{id}/statistics:
+    get:
+      tags:
+        - Topics
+      summary: Get topic statistics
+      description: Retrieves detailed statistics for a topic
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Topic statistics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topic_id:
+                    type: string
+                  analytics:
+                    type: object
+
+  /import/json:
+    post:
+      tags:
+        - Import/Export
+      summary: Import from JSON
+      description: Imports publications from a JSON file
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                batchSize:
+                  type: integer
+                  default: 50
+                updateExisting:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: JSON import completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  file:
+                    type: string
+                  result:
+                    $ref: '#/components/schemas/ImportResult'
+
+  /import/batch:
+    post:
+      tags:
+        - Import/Export
+      summary: Batch import multiple files
+      description: Imports multiple files in batch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - files
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 10
+                batchSize:
+                  type: integer
+                  default: 50
+                updateExisting:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Batch import completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  files:
+                    type: array
+                    items:
+                      type: object
+                  result:
+                    type: object
+
+  /import/extract-info:
+    post:
+      tags:
+        - Import/Export
+      summary: Extract structured information from document
+      description: Extracts structured data from uploaded document
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Information extracted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file:
+                    $ref: '#/components/schemas/FileInfo'
+                  extracted_info:
+                    type: object
+
+  /import/validate:
+    post:
+      tags:
+        - Import/Export
+      summary: Validate import data
+      description: Validates data structure before import
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+                - format
+              properties:
+                data:
+                  type: object
+                format:
+                  type: string
+                  enum: [json, csv]
+      responses:
+        '200':
+          description: Data validation completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_records:
+                    type: integer
+                  valid_records:
+                    type: integer
+                  invalid_records:
+                    type: integer
+                  validation_errors:
+                    type: array
+                    items:
+                      type: object
+                  is_valid:
+                    type: boolean
+
+  /import/status:
+    get:
+      tags:
+        - Import/Export
+      summary: Get import status and configuration
+      description: Retrieves current import service status
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Import status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  import_service:
+                    type: object
+                  etl_service:
+                    type: object
+
+  /import/etl/trigger:
+    post:
+      tags:
+        - Import/Export
+      summary: Trigger manual ETL
+      description: Manually triggers ETL processes
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sources:
+                  type: array
+                  items:
+                    type: string
+                    enum: [openalex, crossref]
+                  default: [openalex, crossref]
+                fullSync:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: ETL process started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  sources:
+                    type: array
+                    items:
+                      type: string
+                  full_sync:
+                    type: boolean
+                  result:
+                    type: object
+
+  /import/etl/status:
+    get:
+      tags:
+        - Import/Export
+      summary: Get ETL job status
+      description: Retrieves status of ETL jobs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: ETL status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /import/cleanup:
+    delete:
+      tags:
+        - Import/Export
+      summary: Clean up old upload files
+      description: Removes old temporary upload files
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxAge:
+                  type: integer
+                  default: 86400000
+                  description: Maximum age in milliseconds
+      responses:
+        '200':
+          description: Cleanup completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  max_age_hours:
+                    type: number
+                  result:
+                    type: object
+
+  /import/statistics:
+    get:
+      tags:
+        - Import/Export
+      summary: Get import statistics
+      description: Retrieves comprehensive import statistics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Import statistics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  overview:
+                    type: object
+                    properties:
+                      total_publications:
+                        type: integer
+                      total_authors:
+                        type: integer
+                      total_citations:
+                        type: integer
+                      recent_imports:
+                        type: integer
+                  imports_by_source:
+                    type: array
+                    items:
+                      type: object
+                  import_service:
+                    type: object
+                  etl_service:
+                    type: object

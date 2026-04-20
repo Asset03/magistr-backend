@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0
+    container_name: scientific-pubs-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: scientific_publications
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - scientific-pubs-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: scientific-pubs-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - scientific-pubs-network
+
+  # Elasticsearch (Optional for advanced search)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
+    container_name: scientific-pubs-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - scientific-pubs-network
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scientific-pubs-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/scientific_publications?authSource=admin
+      REDIS_URL: redis://redis:6379
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      NLP_SERVICE_URL: http://nlp-service:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb
+      - redis
+      - nlp-service
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    networks:
+      - scientific-pubs-network
+
+  # NLP Python Service
+  nlp-service:
+    build:
+      context: ./python-nlp-service
+      dockerfile: Dockerfile
+    container_name: scientific-pubs-nlp
+    restart: unless-stopped
+    environment:
+      FLASK_ENV: production
+      PORT: 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./python-nlp-service:/app
+    networks:
+      - scientific-pubs-network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: scientific-pubs-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    networks:
+      - scientific-pubs-network
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+  elasticsearch_data:
+    driver: local
+
+networks:
+  scientific-pubs-network:
+    driver: bridge

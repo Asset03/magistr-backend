@@ -26,217 +26,175 @@ class RedisClient {
             logger.error('Redis max retry attempts reached');
             return undefined;
           }
-          // Retry after 3 seconds
           return Math.min(options.attempt * 100, 3000);
         }
       });
 
-      this.client.on('error', (err) => {
-        logger.error('Redis Client Error:', err);
+      this.client.on('error', (error) => {
+        logger.error('Redis error:', error);
         this.isConnected = false;
       });
 
       this.client.on('connect', () => {
-        logger.info('Redis Client Connected');
+        logger.info('Redis connected');
         this.isConnected = true;
       });
 
       this.client.on('ready', () => {
-        logger.info('Redis Client Ready');
+        logger.info('Redis ready for commands');
       });
 
       this.client.on('end', () => {
-        logger.info('Redis Client Disconnected');
+        logger.warn('Redis connection ended');
         this.isConnected = false;
       });
 
       await this.client.connect();
-      
       return this.client;
     } catch (error) {
-      logger.error('Failed to connect to Redis:', error);
-      this.isConnected = false;
+      logger.error('Redis connection failed:', error);
       throw error;
     }
   }
 
   async disconnect() {
-    if (this.client) {
-      await this.client.disconnect();
-      this.isConnected = false;
+    try {
+      if (this.client) {
+        await this.client.quit();
+        logger.info('Redis disconnected');
+      }
+    } catch (error) {
+      logger.error('Error disconnecting Redis:', error);
+      throw error;
     }
   }
 
-  async set(key, value, ttl = 3600) {
-    if (!this.isConnected) {
-      logger.warn('Redis not connected, skipping cache set');
-      return false;
-    }
-
+  async set(key, value, ttl = null) {
     try {
-      const serializedValue = JSON.stringify(value);
-      if (ttl > 0) {
-        await this.client.setEx(key, ttl, serializedValue);
+      const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+      
+      if (ttl) {
+        await this.client.setEx(key, ttl, stringValue);
       } else {
-        await this.client.set(key, serializedValue);
+        await this.client.set(key, stringValue);
       }
+      
       return true;
     } catch (error) {
-      logger.error('Redis set error:', error);
-      return false;
+      logger.error(`Redis SET error for key ${key}:`, error);
+      throw error;
     }
   }
 
-  async get(key) {
-    if (!this.isConnected) {
-      logger.warn('Redis not connected, skipping cache get');
-      return null;
-    }
-
+  async get(key, parseJson = true) {
     try {
       const value = await this.client.get(key);
-      if (value === null) {
-        return null;
+      
+      if (!value) return null;
+      
+      if (parseJson) {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return value;
+        }
       }
-      return JSON.parse(value);
+      
+      return value;
     } catch (error) {
-      logger.error('Redis get error:', error);
-      return null;
+      logger.error(`Redis GET error for key ${key}:`, error);
+      throw error;
     }
   }
 
   async del(key) {
-    if (!this.isConnected) {
-      logger.warn('Redis not connected, skipping cache delete');
-      return false;
-    }
-
     try {
-      await this.client.del(key);
-      return true;
+      const result = await this.client.del(key);
+      return result > 0;
     } catch (error) {
-      logger.error('Redis delete error:', error);
-      return false;
+      logger.error(`Redis DEL error for key ${key}:`, error);
+      throw error;
     }
   }
 
   async exists(key) {
-    if (!this.isConnected) {
-      return false;
-    }
-
     try {
       const result = await this.client.exists(key);
       return result === 1;
     } catch (error) {
-      logger.error('Redis exists error:', error);
-      return false;
+      logger.error(`Redis EXISTS error for key ${key}:`, error);
+      throw error;
+    }
+  }
+
+  async expire(key, seconds) {
+    try {
+      const result = await this.client.expire(key, seconds);
+      return result === 1;
+    } catch (error) {
+      logger.error(`Redis EXPIRE error for key ${key}:`, error);
+      throw error;
     }
   }
 
   async flushAll() {
-    if (!this.isConnected) {
-      logger.warn('Redis not connected, skipping flush all');
-      return false;
-    }
-
     try {
       await this.client.flushAll();
+      logger.info('Redis database flushed');
       return true;
     } catch (error) {
-      logger.error('Redis flush all error:', error);
-      return false;
+      logger.error('Redis FLUSHALL error:', error);
+      throw error;
     }
   }
 
-  async incr(key) {
-    if (!this.isConnected) {
-      logger.warn('Redis not connected, skipping increment');
-      return null;
-    }
-
+  async healthCheck() {
     try {
-      return await this.client.incr(key);
-    } catch (error) {
-      logger.error('Redis increment error:', error);
-      return null;
-    }
-  }
-
-  async expire(key, ttl) {
-    if (!this.isConnected) {
-      logger.warn('Redis not connected, skipping expire');
-      return false;
-    }
-
-    try {
-      await this.client.expire(key, ttl);
-      return true;
-    } catch (error) {
-      logger.error('Redis expire error:', error);
-      return false;
-    }
-  }
-
-  // Cache middleware factory
-  cacheMiddleware(ttl = 3600) {
-    return async (req, res, next) => {
-      if (!this.isConnected) {
-        return next();
+      if (!this.client) {
+        throw new Error('Redis client not initialized');
       }
-
-      const cacheKey = `cache:${req.method}:${req.originalUrl}`;
       
-      try {
-        const cachedData = await this.get(cacheKey);
-        
-        if (cachedData) {
-          logger.info(`Cache hit for key: ${cacheKey}`);
-          return res.json(cachedData);
+      const pong = await this.client.ping();
+      const info = await this.client.info('server');
+      
+      return {
+        status: this.isConnected ? 'connected' : 'disconnected',
+        response: pong,
+        info: this.parseRedisInfo(info)
+      };
+    } catch (error) {
+      throw new Error(`Redis health check failed: ${error.message}`);
+    }
+  }
+
+  parseRedisInfo(info) {
+    const lines = info.split('\r\n');
+    const result = {};
+    
+    lines.forEach(line => {
+      if (line && !line.startsWith('#')) {
+        const [key, value] = line.split(':');
+        if (key && value) {
+          result[key] = value;
         }
-        
-        // Override res.json to cache the response
-        const originalJson = res.json;
-        res.json = function(data) {
-          // Only cache successful responses
-          if (res.statusCode === 200) {
-            this.set(cacheKey, data, ttl).catch(err => {
-              logger.error('Failed to cache response:', err);
-            });
-          }
-          return originalJson.call(this, data);
-        };
-        
-        next();
-      } catch (error) {
-        logger.error('Cache middleware error:', error);
-        next();
       }
+    });
+    
+    return {
+      version: result.redis_version,
+      uptime: result.uptime_in_seconds,
+      connected_clients: result.connected_clients,
+      used_memory: result.used_memory_human
     };
   }
 
-  // Invalidate cache by pattern
-  async invalidatePattern(pattern) {
-    if (!this.isConnected) {
-      logger.warn('Redis not connected, skipping pattern invalidation');
-      return false;
-    }
+  getClient() {
+    return this.client;
+  }
 
-    try {
-      const keys = await this.client.keys(pattern);
-      if (keys.length > 0) {
-        await this.client.del(keys);
-        logger.info(`Invalidated ${keys.length} cache keys matching pattern: ${pattern}`);
-      }
-      return true;
-    } catch (error) {
-      logger.error('Redis pattern invalidation error:', error);
-      return false;
-    }
+  isReady() {
+    return this.isConnected && this.client;
   }
 }
 
-// Create singleton instance
-const redisClient = new RedisClient();
-
-module.exports = redisClient;
+module.exports = new RedisClient();
