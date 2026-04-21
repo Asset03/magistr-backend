@@ -9,7 +9,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "lint": "eslint src/",
-    "migrate": "node scripts/migrate.js"
+    "migrate": "node scripts/migrate.js",
+    "seed": "node scripts/seedDatabase.js",
+    "seed:dev": "NODE_ENV=development node scripts/seedDatabase.js"
   },
   "keywords": [
     "scientific-publications",

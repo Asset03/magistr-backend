@@ -256,7 +256,7 @@ const topicSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
-topicSchema.index({ name: 'text', description: 'text', keywords: 1 });
+topicSchema.index({ name: 'text', description: 'text' });
 topicSchema.index({ parent_topic_id: 1 });
 topicSchema.index({ level: 1 });
 topicSchema.index({ category: 1 });

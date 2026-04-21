@@ -27,7 +27,7 @@ router.get('/dashboard', async (req, res) => {
     const recentPublications = await Publication.find({ status: 'published' })
       .sort({ created_at: -1 })
       .limit(5)
-      .select('title created_at');
+      .select('title created_at authors abstract publication_year citations_count journal doi');
 
     const topAuthors = await Author.find({ status: 'active' })
       .sort({ h_index: -1 })
