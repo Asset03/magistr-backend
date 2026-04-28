@@ -11,4 +11,4 @@ COPY . .
 
 EXPOSE 4000
 
-CMD ["pm2-runtime", "start", "npm", "--", "start"]
+CMD ["npm", "start"]

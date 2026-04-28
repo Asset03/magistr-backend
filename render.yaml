@@ -1,0 +1,23 @@
+services:
+  # Backend Service
+  - type: web
+    name: scientific-publications-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NLP_SERVICE_URL
+        value: https://scientific-nlp-service.onrender.com
+    healthCheckPath: /health
+
+  # NLP Service
+  - type: web
+    name: scientific-nlp-service
+    env: docker
+    dockerfilePath: ./python-nlp-service/Dockerfile
+    dockerContext: ./python-nlp-service
+    plan: free
+    healthCheckPath: /health
