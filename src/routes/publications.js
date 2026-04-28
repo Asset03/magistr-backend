@@ -18,7 +18,8 @@ router.get('/', [
   query('journal').optional().isString(),
   query('minCitations').optional().isInt({ min: 0 }),
   query('keyword').optional().isString(),
-  query('sortBy').optional().isIn(['citations_count', 'publication_year', 'created_at', 'title']),
+  query('search').optional().isString(),
+  query('sortBy').optional().isIn(['citations_count', 'publication_year', 'created_at', 'title', 'h_index', 'total_citations', 'popularity_score']),
   query('sortOrder').optional().isIn(['asc', 'desc'])
 ], async (req, res) => {
   try {
@@ -32,39 +33,92 @@ router.get('/', [
     const skip = (page - 1) * limit;
 
     // Build query
-    const query = { status: 'published' };
+    let query = { status: 'published' };
 
     // Apply filters
     if (req.query.year) {
-      query.publication_year = parseInt(req.query.year);
+      if (query.$and) {
+        query.$and.push({ publication_year: parseInt(req.query.year) });
+      } else {
+        query.publication_year = parseInt(req.query.year);
+      }
     }
 
     if (req.query.author) {
-      query['authors.name'] = { $regex: req.query.author, $options: 'i' };
+      query = {
+        $and: [
+          { status: 'published' },
+          {
+            $or: [
+              { 'authors.name': { $regex: req.query.author, $options: 'i' } },
+              { 'authors.affiliation': { $regex: req.query.author, $options: 'i' } }
+            ]
+          }
+        ]
+      };
     }
 
     if (req.query.journal) {
-      query['journal.name'] = { $regex: req.query.journal, $options: 'i' };
+      if (query.$and) {
+        query.$and.push({ 'journal.name': { $regex: req.query.journal, $options: 'i' } });
+      } else {
+        query['journal.name'] = { $regex: req.query.journal, $options: 'i' };
+      }
     }
 
     if (req.query.minCitations) {
-      query.citations_count = { $gte: parseInt(req.query.minCitations) };
+      if (query.$and) {
+        query.$and.push({ citations_count: { $gte: parseInt(req.query.minCitations) } });
+      } else {
+        query.citations_count = { $gte: parseInt(req.query.minCitations) };
+      }
     }
 
     if (req.query.keyword) {
-      query['keywords.term'] = { $regex: req.query.keyword, $options: 'i' };
+      if (query.$and) {
+        query.$and.push({ 'keywords.term': { $regex: req.query.keyword, $options: 'i' } });
+      } else {
+        query['keywords.term'] = { $regex: req.query.keyword, $options: 'i' };
+      }
     }
 
     // Text search
     if (req.query.search) {
-      query.$text = { $search: req.query.search };
+      if (query.$and) {
+        query.$and.push({ $text: { $search: req.query.search } });
+      } else {
+        query.$text = { $search: req.query.search };
+      }
     }
 
     // Sorting
     const sortField = req.query.sortBy || 'created_at';
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
     const sort = {};
-    sort[sortField] = sortOrder;
+    
+    // Handle special sorting fields
+    switch (sortField) {
+      case 'h_index':
+        // Sort by maximum h-index among authors
+        sort['h_index_authors'] = sortOrder;
+        break;
+      case 'total_citations':
+        sort['citations_count'] = sortOrder;
+        break;
+      case 'popularity_score':
+        // Combine multiple metrics for popularity
+        sort['citations_count'] = sortOrder;
+        sort['views_count'] = sortOrder;
+        sort['altmetric_score'] = sortOrder;
+        break;
+      case 'r':
+        // Sort by citations_per_year (virtual field - need to calculate)
+        sort['citations_count'] = sortOrder;
+        sort['publication_year'] = sortOrder === 1 ? 1 : -1; // Reverse for proper r calculation
+        break;
+      default:
+        sort[sortField] = sortOrder;
+    }
 
     // Execute query
     const publications = await Publication.find(query)
@@ -88,7 +142,11 @@ router.get('/', [
 
   } catch (error) {
     logger.error('Error fetching publications:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error('Query that failed:', JSON.stringify(query, null, 2));
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
