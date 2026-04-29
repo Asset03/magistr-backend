@@ -23,15 +23,56 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
-# Initialize NLP components
-text_processor = TextProcessor()
-topic_modeler = TopicModeler()
-embedding_generator = EmbeddingGenerator()
-citation_analyzer = CitationAnalyzer()
-language_detector = LanguageDetector()
-sentiment_analyzer = SentimentAnalyzer()
-keyword_extractor = KeywordExtractor()
-document_parser = DocumentParser()
+# Initialize NLP components lazily to avoid startup timeout
+text_processor = None
+topic_modeler = None
+embedding_generator = None
+citation_analyzer = None
+language_detector = None
+sentiment_analyzer = None
+keyword_extractor = None
+document_parser = None
+
+def initialize_components():
+    """Initialize NLP components on first use"""
+    global text_processor, topic_modeler, embedding_generator, citation_analyzer
+    global language_detector, sentiment_analyzer, keyword_extractor, document_parser
+    
+    if text_processor is None:
+        logger.info("Initializing NLP components...")
+        text_processor = TextProcessor()
+        topic_modeler = TopicModeler()
+        embedding_generator = EmbeddingGenerator()
+        citation_analyzer = CitationAnalyzer()
+        language_detector = LanguageDetector()
+        sentiment_analyzer = SentimentAnalyzer()
+        keyword_extractor = KeywordExtractor()
+        document_parser = DocumentParser()
+        logger.info("NLP components initialized successfully")
+
+@app.route('/')
+def root():
+    """Root endpoint for basic connectivity test"""
+    return jsonify({
+        'message': 'NLP Service is running',
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'service': 'NLP Service',
+        'version': '1.0.0',
+        'endpoints': [
+            '/health',
+            '/process/text',
+            '/process/publication',
+            '/analyze/citations',
+            '/model/topics',
+            '/embeddings/generate',
+            '/keywords/extract',
+            '/sentiment/analyze',
+            '/language/detect',
+            '/document/parse',
+            '/batch/process'
+        ]
+    })
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -47,6 +88,9 @@ def health_check():
 def process_text():
     """Process raw text for analysis"""
     try:
+        # Initialize components on first request
+        initialize_components()
+        
         data = request.get_json()
         
         if not data or 'text' not in data:
@@ -94,6 +138,9 @@ def process_text():
 def process_publication():
     """Process scientific publication data"""
     try:
+        # Initialize components on first request
+        initialize_components()
+        
         data = request.get_json()
         
         if not data or 'title' not in data:
@@ -156,6 +203,9 @@ def process_publication():
 def analyze_citations():
     """Analyze citation relationships"""
     try:
+        # Initialize components on first request
+        initialize_components()
+        
         data = request.get_json()
         
         if not data or 'citing_text' not in data or 'cited_text' not in data:
@@ -190,6 +240,9 @@ def analyze_citations():
 def model_topics():
     """Perform topic modeling on a collection of documents"""
     try:
+        # Initialize components on first request
+        initialize_components()
+        
         data = request.get_json()
         
         if not data or 'documents' not in data:
@@ -223,6 +276,9 @@ def model_topics():
 def generate_embeddings():
     """Generate embeddings for text"""
     try:
+        # Initialize components on first request
+        initialize_components()
+        
         data = request.get_json()
         
         if not data or 'texts' not in data:
@@ -251,6 +307,9 @@ def generate_embeddings():
 def extract_keywords():
     """Extract keywords from text"""
     try:
+        # Initialize components on first request
+        initialize_components()
+        
         data = request.get_json()
         
         if not data or 'text' not in data:
@@ -290,6 +349,9 @@ def extract_keywords():
 def analyze_sentiment():
     """Analyze sentiment of text"""
     try:
+        # Initialize components on first request
+        initialize_components()
+        
         data = request.get_json()
         
         if not data or 'text' not in data:
@@ -321,6 +383,9 @@ def analyze_sentiment():
 def detect_language():
     """Detect language of text"""
     try:
+        # Initialize components on first request
+        initialize_components()
+        
         data = request.get_json()
         
         if not data or 'text' not in data:
@@ -348,6 +413,9 @@ def detect_language():
 def parse_document():
     """Parse document from uploaded file or text"""
     try:
+        # Initialize components on first request
+        initialize_components()
+        
         # Handle file upload
         if 'file' in request.files:
             file = request.files['file']
@@ -374,6 +442,9 @@ def parse_document():
 def batch_process():
     """Process multiple documents in batch"""
     try:
+        # Initialize components on first request
+        initialize_components()
+        
         data = request.get_json()
         
         if not data or 'documents' not in data:
