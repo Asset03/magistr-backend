@@ -15,4 +15,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "gunicorn -w 2 -b 0.0.0.0:$PORT app:app"]
+CMD ["sh", "-c", "gunicorn -w 1 -k gthread --threads 4 --timeout 300 -b 0.0.0.0:$PORT app:app"]
