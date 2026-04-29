@@ -8,9 +8,7 @@ class Database {
 
   async connect() {
     try {
-      const mongoUri = process.env.NODE_ENV === 'test' 
-        ? process.env.MONGODB_TEST_URI 
-        : process.env.MONGODB_URI;
+      const mongoUri = process.env.MONGODB_URI;
 
       if (!mongoUri) {
         throw new Error('MongoDB URI not provided');

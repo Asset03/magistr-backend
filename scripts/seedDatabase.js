@@ -470,7 +470,7 @@ async function generateCitations(count = 500, publications) {
 async function seedDatabase() {
   try {
     console.log('Connecting to database...');
-    await mongoose.connect(process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/magistr-backend');
+    await mongoose.connect(process.env.MONGODB_URI);
     
     console.log('Clearing existing data...');
     await User.deleteMany({});
