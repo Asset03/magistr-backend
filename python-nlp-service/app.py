@@ -81,7 +81,8 @@ def health_check():
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
         'service': 'NLP Service',
-        'version': '1.0.0'
+        'version': '1.0.0',
+        'name': 'Turan NLP Service'
     })
 
 @app.route('/process/text', methods=['POST'])
